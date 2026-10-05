@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>keepwarm</title>
+  <meta name="description" content="Keep Render free-tier services warm and monitor every ping.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='%23eb6834'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand"><span class="brand-dot" aria-hidden="true"></span>keepwarm</div>
+      <div class="topbar-right">
+        <span id="live" class="live" data-state="connecting" title="Live updates"><span class="live-dot"></span><span class="live-label">Connecting…</span></span>
+        <button id="theme" class="btn btn-ghost btn-icon" type="button" aria-label="Toggle theme">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="tiles" id="summary" aria-label="Summary"></section>
+
+    <section class="card">
+      <h2>Add a service</h2>
+      <form id="add-form" class="add-form" autocomplete="off">
+        <label class="field field-url">
+          <span>Render URL</span>
+          <input name="url" type="url" required placeholder="https://your-app.onrender.com/">
+        </label>
+        <label class="field field-name">
+          <span>Name <em>(optional)</em></span>
+          <input name="name" type="text" maxlength="100" placeholder="My API">
+        </label>
+        <label class="field field-interval">
+          <span>Ping every</span>
+          <select name="intervalMinutes">
+            <option value="1">1 minute</option>
+            <option value="2">2 minutes</option>
+            <option value="5">5 minutes</option>
+            <option value="10" selected>10 minutes</option>
+            <option value="14">14 minutes</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label class="field field-custom" hidden>
+          <span>Minutes</span>
+          <input name="customMinutes" type="number" min="1" max="60" step="1" value="12">
+        </label>
+        <button class="btn btn-primary" type="submit">Start pinging</button>
+      </form>
+      <p class="hint" id="interval-hint">Render free services spin down after 15 minutes without traffic, so any interval under 15 minutes keeps them warm.</p>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Services</h2>
+        <div class="segmented" id="window-picker" role="tablist" aria-label="Time window">
+          <button type="button" data-window="1h">1h</button>
+          <button type="button" data-window="24h" class="active">24h</button>
+          <button type="button" data-window="7d">7d</button>
+        </div>
+      </div>
+      <div id="monitors" class="monitors"></div>
+    </section>
+
+    <section class="card" id="detail" hidden>
+      <div class="card-head">
+        <div>
+          <h2 id="detail-title"></h2>
+          <a id="detail-url" class="muted mono small" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <button class="btn btn-ghost" id="detail-close" type="button">Close</button>
+      </div>
+
+      <div class="tiles tiles-compact" id="detail-tiles"></div>
+
+      <h3>Response time <span class="muted small" id="chart-caption"></span></h3>
+      <div class="legend" aria-hidden="true">
+        <span><i class="sw sw-latency"></i>Avg response time</span>
+        <span><i class="sw sw-cold"></i>Contains a cold start</span>
+      </div>
+      <div class="chart" id="latency-chart" role="img" aria-label="Average response time per time bucket"></div>
+      <div class="legend strip-legend">
+        <strong class="small">Availability</strong>
+        <span><i class="sw sw-ok"></i>All pings succeeded</span>
+        <span><i class="sw sw-fail"></i>At least one failed</span>
+        <span><i class="sw sw-empty"></i>No data</span>
+      </div>
+      <div class="strip" id="uptime-strip"></div>
+
+      <div class="split">
+        <div>
+          <h3>Incidents</h3>
+          <ul class="incidents" id="incidents"></ul>
+        </div>
+        <div>
+          <div class="card-head">
+            <h3>Request log</h3>
+            <label class="check"><input type="checkbox" id="failed-only"> Failures only</label>
+          </div>
+          <div class="table-wrap">
+            <table class="log">
+              <thead><tr><th>Time</th><th>Result</th><th class="num">Status</th><th class="num">Response</th><th>Detail</th></tr></thead>
+              <tbody id="log-body"></tbody>
+            </table>
+          </div>
+          <button class="btn btn-ghost" id="log-more" type="button" hidden>Load older</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Live activity</h2>
+      <ul class="feed" id="feed"><li class="muted">Waiting for the next ping…</li></ul>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <template id="edit-template">
+    <form class="edit-form">
+      <input name="name" type="text" maxlength="100" aria-label="Name">
+      <input name="intervalMinutes" type="number" min="1" max="60" step="1" aria-label="Interval in minutes">
+      <span class="muted small">min</span>
+      <button class="btn btn-primary btn-sm" type="submit">Save</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-cancel>Cancel</button>
+    </form>
+  </template>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
