@@ -72,6 +72,12 @@ export function createStore(db) {
       INSERT INTO pings (monitor_id, started_at, latency_ms, status_code, ok, error)
       VALUES (?, ?, ?, ?, ?, ?)`),
     lastPing: db.prepare('SELECT * FROM pings WHERE monitor_id = ? ORDER BY started_at DESC, id DESC LIMIT 1'),
+    pingsSince: db.prepare('SELECT * FROM pings WHERE monitor_id = ? AND started_at >= ? ORDER BY started_at, id'),
+    history: db.prepare(`
+      SELECT * FROM pings
+      WHERE monitor_id = ? AND id < ? AND (? = 0 OR ok = 0)
+      ORDER BY id DESC LIMIT ?`),
+    prune: db.prepare('DELETE FROM pings WHERE started_at < ?'),
   };
 
   return {
@@ -96,7 +102,9 @@ export function createStore(db) {
       return { id: Number(lastInsertRowid), monitorId, startedAt, latencyMs, statusCode, ok, error: error ?? null };
     },
     lastPing: (monitorId) => toPing(q.lastPing.get(monitorId)),
+    pingsSince: (monitorId, since) => q.pingsSince.all(monitorId, since).map(toPing),
+    pingHistory: (monitorId, { before = Number.MAX_SAFE_INTEGER, limit = 50, failedOnly = false } = {}) =>
+      q.history.all(monitorId, before, failedOnly ? 1 : 0, limit).map(toPing),
+    prunePings: (olderThan) => Number(q.prune.run(olderThan).changes),
   };
 }
-
-export { toPing };
