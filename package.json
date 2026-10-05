@@ -1,0 +1,17 @@
+{
+  "name": "keepwarm",
+  "version": "0.1.0",
+  "description": "Keep Render free-tier services warm by pinging them on a schedule, with request monitoring.",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}
