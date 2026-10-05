@@ -6,9 +6,13 @@ import { Alerter } from './alerts.js';
 import { createApp } from './app.js';
 import { seedMonitors } from './seed.js';
 import { ping } from './pinger.js';
+import { loadSettings } from './settings.js';
 
 const store = createStore(openDb(config.dbPath));
-const scheduler = new Scheduler(store, { timeoutMs: config.requestTimeoutMs });
+const scheduler = new Scheduler(store, {
+  timeoutMs: config.requestTimeoutMs,
+  timezone: () => loadSettings(store, config).timezone ?? 'UTC',
+});
 const metrics = new Metrics({ coldStartThresholdMs: config.coldStartThresholdMs });
 const alerter = new Alerter(store, { webhookUrl: config.alertWebhookUrl });
 const app = createApp({ store, scheduler, config, metrics });

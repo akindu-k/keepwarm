@@ -74,7 +74,9 @@ test('/api/events streams ping results', async () => {
   let text = '';
   while (!text.includes('event: ping')) text += new TextDecoder().decode((await reader.read()).value);
   controller.abort();
-  const data = JSON.parse(text.split('data: ')[1].split('\n')[0]);
+  assert.match(text, /event: ping-start\ndata: \{"monitorId":\d+\}/);
+  while (!/event: ping\ndata: .*\n/.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+  const data = JSON.parse(/event: ping\ndata: (.*)\n/.exec(text)[1]);
   assert.equal(data.monitorId, body.id);
   assert.equal(data.ping.statusCode, 200);
 });

@@ -29,4 +29,8 @@ export const config = {
   // Monitors to create on startup, e.g. "https://a.onrender.com=10,https://b.onrender.com=5".
   // Useful on hosts without persistent disks, where the database starts empty after each restart.
   seedMonitors: process.env.SEED_MONITORS || '',
+  // Defaults for the free-hour budget; changes made in the dashboard override these.
+  monthlyHourLimit: int(process.env.MONTHLY_HOUR_LIMIT, 750),
+  timezone: process.env.TIMEZONE || null,
+  countSelf: process.env.COUNT_SELF === 'true',
 };

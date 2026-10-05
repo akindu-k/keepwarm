@@ -38,3 +38,10 @@ test('seedMonitors creates missing monitors and is idempotent', () => {
   assert.equal(seedMonitors(store, spec, testConfig).length, 0);
   assert.throws(() => seedMonitors(store, 'https://example.com=5', testConfig), /Render URL/);
 });
+
+test('seedMonitors accepts an optional daily window', () => {
+  const store = createStore(openDb(':memory:'));
+  const [m] = seedMonitors(store, 'https://a.onrender.com=10@08:00-20:30', testConfig);
+  assert.equal(m.activeStart, 480);
+  assert.equal(m.activeEnd, 1230);
+});

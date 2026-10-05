@@ -7,6 +7,8 @@ export function monitorsRouter({ store, scheduler, config }) {
   const withSchedule = (monitor) => ({
     ...monitor,
     nextPingAt: scheduler.getNextRunAt(monitor.id),
+    sleeping: scheduler.isSleeping(monitor),
+    pinging: scheduler.isPinging(monitor.id),
     lastPing: store.lastPing(monitor.id) ?? null,
   });
 

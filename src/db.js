@@ -30,7 +30,17 @@ export function openDb(path) {
     );
 
     CREATE INDEX IF NOT EXISTS pings_monitor_time ON pings (monitor_id, started_at DESC);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key    TEXT PRIMARY KEY,
+      value  TEXT NOT NULL
+    );
   `);
+  // Daily active window, in minutes after local midnight. NULL means all day.
+  const columns = db.prepare('PRAGMA table_info(monitors)').all().map((c) => c.name);
+  if (!columns.includes('active_start')) {
+    db.exec('ALTER TABLE monitors ADD COLUMN active_start INTEGER; ALTER TABLE monitors ADD COLUMN active_end INTEGER;');
+  }
   return db;
 }
 
@@ -41,6 +51,8 @@ const toMonitor = (row) =>
     url: row.url,
     intervalMinutes: row.interval_minutes,
     enabled: row.enabled === 1,
+    activeStart: row.active_start ?? null,
+    activeEnd: row.active_end ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -62,11 +74,16 @@ export function createStore(db) {
     get: db.prepare('SELECT * FROM monitors WHERE id = ?'),
     count: db.prepare('SELECT COUNT(*) AS n FROM monitors'),
     insert: db.prepare(`
-      INSERT INTO monitors (name, url, interval_minutes, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)`),
+      INSERT INTO monitors (name, url, interval_minutes, enabled, active_start, active_end, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
     update: db.prepare(`
-      UPDATE monitors SET name = ?, url = ?, interval_minutes = ?, enabled = ?, updated_at = ?
+      UPDATE monitors SET name = ?, url = ?, interval_minutes = ?, enabled = ?, active_start = ?, active_end = ?,
+        updated_at = ?
       WHERE id = ?`),
+    getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
+    setSetting: db.prepare(`
+      INSERT INTO settings (key, value) VALUES (?, ?)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value`),
     remove: db.prepare('DELETE FROM monitors WHERE id = ?'),
     insertPing: db.prepare(`
       INSERT INTO pings (monitor_id, started_at, latency_ms, status_code, ok, error)
@@ -85,13 +102,15 @@ export function createStore(db) {
     listMonitors: () => q.list.all().map(toMonitor),
     getMonitor: (id) => toMonitor(q.get.get(id)),
     countMonitors: () => q.count.get().n,
-    createMonitor({ name, url, intervalMinutes, enabled = true }) {
+    createMonitor({ name, url, intervalMinutes, enabled = true, activeStart = null, activeEnd = null }) {
       const now = Date.now();
-      const { lastInsertRowid } = q.insert.run(name, url, intervalMinutes, enabled ? 1 : 0, now, now);
+      const { lastInsertRowid } = q.insert.run(
+        name, url, intervalMinutes, enabled ? 1 : 0, activeStart, activeEnd, now, now,
+      );
       return toMonitor(q.get.get(lastInsertRowid));
     },
-    updateMonitor(id, { name, url, intervalMinutes, enabled }) {
-      q.update.run(name, url, intervalMinutes, enabled ? 1 : 0, Date.now(), id);
+    updateMonitor(id, { name, url, intervalMinutes, enabled, activeStart = null, activeEnd = null }) {
+      q.update.run(name, url, intervalMinutes, enabled ? 1 : 0, activeStart, activeEnd, Date.now(), id);
       return toMonitor(q.get.get(id));
     },
     deleteMonitor: (id) => q.remove.run(id).changes > 0,
@@ -100,6 +119,17 @@ export function createStore(db) {
         monitorId, startedAt, latencyMs ?? null, statusCode ?? null, ok ? 1 : 0, error ?? null,
       );
       return { id: Number(lastInsertRowid), monitorId, startedAt, latencyMs, statusCode, ok, error: error ?? null };
+    },
+    getSettings() {
+      const settings = {};
+      for (const key of ['monthlyHourLimit', 'reservedHours', 'timezone', 'countSelf']) {
+        const row = q.getSetting.get(key);
+        if (row) settings[key] = JSON.parse(row.value);
+      }
+      return settings;
+    },
+    saveSettings(values) {
+      for (const [key, value] of Object.entries(values)) q.setSetting.run(key, JSON.stringify(value));
     },
     lastPing: (monitorId) => toPing(q.lastPing.get(monitorId)),
     pingsSince: (monitorId, since) => q.pingsSince.all(monitorId, since).map(toPing),

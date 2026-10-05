@@ -1,11 +1,13 @@
 import { EventEmitter } from 'node:events';
 import { ping as defaultPing } from './pinger.js';
+import { isInWindow, msUntilWindowOpens } from './timewindow.js';
 
 // Keeps one timer per enabled monitor and records each ping result.
 // Emits 'ping' with { monitor, ping } after every request.
 export class Scheduler extends EventEmitter {
-  constructor(store, { timeoutMs, pingFn = defaultPing, now = Date.now } = {}) {
+  constructor(store, { timeoutMs, pingFn = defaultPing, now = Date.now, timezone = () => 'UTC' } = {}) {
     super();
+    this.timezone = timezone;
     this.store = store;
     this.timeoutMs = timeoutMs;
     this.pingFn = pingFn;
@@ -26,14 +28,31 @@ export class Scheduler extends EventEmitter {
   }
 
   // (Re)schedule a monitor. The first run is due one interval after the last
-  // recorded ping, or immediately if it has never been pinged.
+  // recorded ping, or immediately if it has never been pinged. Outside the
+  // monitor's daily window, the next run is when the window opens.
   schedule(monitor) {
     this.unschedule(monitor.id);
     if (!monitor.enabled) return;
+    const now = new Date(this.now());
+    const tz = this.timezone();
+    if (!isInWindow(monitor, now, tz)) return this.#arm(monitor.id, msUntilWindowOpens(monitor, now, tz));
     const last = this.store.lastPing(monitor.id);
     const intervalMs = monitor.intervalMinutes * 60_000;
     const delay = last ? Math.max(0, last.startedAt + intervalMs - this.now()) : 0;
     this.#arm(monitor.id, delay);
+  }
+
+  rescheduleAll() {
+    this.stop();
+    this.start();
+  }
+
+  isPinging(id) {
+    return this.inFlight.has(id);
+  }
+
+  isSleeping(monitor) {
+    return monitor.enabled && !isInWindow(monitor, new Date(this.now()), this.timezone());
   }
 
   unschedule(id) {
@@ -63,6 +82,9 @@ export class Scheduler extends EventEmitter {
   async #tick(id) {
     const monitor = this.store.getMonitor(id);
     if (!monitor || !monitor.enabled) return this.unschedule(id);
+    const now = new Date(this.now());
+    const tz = this.timezone();
+    if (!isInWindow(monitor, now, tz)) return this.#arm(id, msUntilWindowOpens(monitor, now, tz));
     // Arm the next run first so a slow request doesn't drift the schedule.
     this.#arm(id, monitor.intervalMinutes * 60_000);
     await this.#run(monitor);
@@ -71,6 +93,7 @@ export class Scheduler extends EventEmitter {
   async #run(monitor) {
     if (this.inFlight.has(monitor.id)) return null;
     this.inFlight.add(monitor.id);
+    this.emit('ping-start', { monitor });
     try {
       const result = await this.pingFn(monitor.url, { timeoutMs: this.timeoutMs });
       // The monitor may have been deleted while the request was in flight.

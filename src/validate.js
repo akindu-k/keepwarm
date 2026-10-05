@@ -55,5 +55,30 @@ export function parseMonitorInput(body, config, existing) {
     enabled = body.enabled;
   }
 
-  return { name, url, intervalMinutes, enabled };
+  let activeStart = existing?.activeStart ?? null;
+  let activeEnd = existing?.activeEnd ?? null;
+  if (body.activeStart !== undefined || body.activeEnd !== undefined) {
+    activeStart = body.activeStart ?? null;
+    activeEnd = body.activeEnd ?? null;
+    if ((activeStart === null) !== (activeEnd === null)) {
+      throw new ValidationError('activeStart and activeEnd must both be set, or both be null for all day');
+    }
+    if (activeStart !== null) {
+      for (const v of [activeStart, activeEnd]) {
+        if (!Number.isInteger(v) || v < 0 || v >= 1440) {
+          throw new ValidationError('activeStart and activeEnd must be minutes after midnight (0-1439)');
+        }
+      }
+      if (activeStart === activeEnd) throw new ValidationError('activeStart and activeEnd must differ');
+    }
+  }
+
+  return { name, url, intervalMinutes, enabled, activeStart, activeEnd };
+}
+
+// Parses "HH:MM" into minutes after midnight.
+export function parseClock(text) {
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(text).trim());
+  if (!match) throw new ValidationError(`"${text}" is not a valid HH:MM time`);
+  return Number(match[1]) * 60 + Number(match[2]);
 }
