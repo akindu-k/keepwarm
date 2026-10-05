@@ -19,4 +19,14 @@ export const config = {
   retentionDays: int(process.env.RETENTION_DAYS, 7),
   // Optional Slack/Discord-compatible webhook notified when a monitor goes down or recovers.
   alertWebhookUrl: process.env.ALERT_WEBHOOK_URL || null,
+  // When set, the dashboard and API require HTTP Basic auth with this password.
+  dashboardPassword: process.env.DASHBOARD_PASSWORD || null,
+  // keepwarm pings itself here so it doesn't sleep when hosted on a free tier.
+  // Render sets RENDER_EXTERNAL_URL automatically.
+  selfPingUrl: process.env.SELF_PING_URL ?? (process.env.RENDER_EXTERNAL_URL
+    ? new URL('/healthz', process.env.RENDER_EXTERNAL_URL).toString()
+    : null),
+  // Monitors to create on startup, e.g. "https://a.onrender.com=10,https://b.onrender.com=5".
+  // Useful on hosts without persistent disks, where the database starts empty after each restart.
+  seedMonitors: process.env.SEED_MONITORS || '',
 };

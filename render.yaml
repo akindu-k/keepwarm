@@ -1,0 +1,20 @@
+# Render Blueprint for running keepwarm itself on Render's free tier.
+# Free services have no persistent disk, so the ping history resets on every
+# restart; list your services in SEED_MONITORS so they're re-created on boot.
+services:
+  - type: web
+    name: keepwarm
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: SEED_MONITORS
+        sync: false
+      - key: ALERT_WEBHOOK_URL
+        sync: false
