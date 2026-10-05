@@ -71,7 +71,7 @@ export function createStore(db) {
     insertPing: db.prepare(`
       INSERT INTO pings (monitor_id, started_at, latency_ms, status_code, ok, error)
       VALUES (?, ?, ?, ?, ?, ?)`),
-    lastPing: db.prepare('SELECT * FROM pings WHERE monitor_id = ? ORDER BY started_at DESC LIMIT 1'),
+    lastPing: db.prepare('SELECT * FROM pings WHERE monitor_id = ? ORDER BY started_at DESC, id DESC LIMIT 1'),
   };
 
   return {
