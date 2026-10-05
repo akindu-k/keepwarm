@@ -39,7 +39,7 @@ export function observabilityRouter({ store, scheduler, config }) {
         nextPingAt: scheduler.getNextRunAt(m.id),
         lastPing: store.lastPing(m.id) ?? null,
         stats: { ...stats, openIncident: incidents.find((i) => i.ongoing) ?? null },
-        sparkline: series.map((b) => ({ start: b.start, avgLatencyMs: b.avgLatencyMs, failures: b.failures })),
+        sparkline: series.map(({ start, avgLatencyMs, failures, coldStarts }) => ({ start, avgLatencyMs, failures, coldStarts })),
       };
     });
     res.json({ window: windowKey, generatedAt: Date.now(), monitors });

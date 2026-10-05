@@ -1,4 +1,5 @@
 import express from 'express';
+import { fileURLToPath } from 'node:url';
 import { monitorsRouter } from './routes/monitors.js';
 import { observabilityRouter } from './routes/observability.js';
 
@@ -21,6 +22,8 @@ export function createApp({ store, scheduler, config, metrics }) {
   app.use('/api', observabilityRouter({ store, scheduler, config }));
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));
+
+  app.use(express.static(fileURLToPath(new URL('../public', import.meta.url))));
 
   app.use((err, _req, res, _next) => {
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'invalid JSON body' });
