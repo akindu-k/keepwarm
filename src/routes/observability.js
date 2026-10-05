@@ -37,6 +37,8 @@ export function observabilityRouter({ store, scheduler, config }) {
       return {
         ...m,
         nextPingAt: scheduler.getNextRunAt(m.id),
+        sleeping: scheduler.isSleeping(m),
+        pinging: scheduler.isPinging(m.id),
         lastPing: store.lastPing(m.id) ?? null,
         stats: { ...stats, openIncident: incidents.find((i) => i.ongoing) ?? null },
         sparkline: series.map(({ start, avgLatencyMs, failures, coldStarts }) => ({ start, avgLatencyMs, failures, coldStarts })),
@@ -81,11 +83,16 @@ export function observabilityRouter({ store, scheduler, config }) {
     const onPing = ({ monitor, ping }) => {
       res.write(`event: ping\ndata: ${JSON.stringify({ monitorId: monitor.id, ping })}\n\n`);
     };
+    const onStart = ({ monitor }) => {
+      res.write(`event: ping-start\ndata: ${JSON.stringify({ monitorId: monitor.id })}\n\n`);
+    };
     const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 25_000);
     scheduler.on('ping', onPing);
+    scheduler.on('ping-start', onStart);
     req.on('close', () => {
       clearInterval(heartbeat);
       scheduler.off('ping', onPing);
+      scheduler.off('ping-start', onStart);
     });
   });
 

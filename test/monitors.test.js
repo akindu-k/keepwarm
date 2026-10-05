@@ -69,3 +69,16 @@ test('returns 400 for malformed JSON', async () => {
   });
   assert.equal(res.status, 400);
 });
+
+test('does not ping outside the daily window and schedules the window start', async () => {
+  const nowMin = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
+  const activeStart = (nowMin + 120) % 1440;
+  const activeEnd = (nowMin + 180) % 1440;
+  const res = await t.api('POST', '/api/monitors', { url: 'https://a.onrender.com', intervalMinutes: 5, activeStart, activeEnd });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.sleeping, true);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(t.pings.length, 0);
+  const minutesUntil = (res.body.nextPingAt - Date.now()) / 60_000;
+  assert.ok(minutesUntil > 118 && minutesUntil <= 120, `next ping in ${minutesUntil} min`);
+});

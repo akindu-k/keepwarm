@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { monitorsRouter } from './routes/monitors.js';
 import { observabilityRouter } from './routes/observability.js';
 import { basicAuth } from './auth.js';
+import { budgetRouter } from './routes/budget.js';
 
 export function createApp({ store, scheduler, config, metrics }) {
   const app = express();
@@ -22,6 +23,7 @@ export function createApp({ store, scheduler, config, metrics }) {
 
   app.use('/api/monitors', monitorsRouter({ store, scheduler, config }));
   app.use('/api', observabilityRouter({ store, scheduler, config }));
+  app.use('/api', budgetRouter({ store, scheduler, config }));
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));
 

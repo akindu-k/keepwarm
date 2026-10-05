@@ -48,10 +48,72 @@
           <span>Minutes</span>
           <input name="customMinutes" type="number" min="1" max="60" step="1" value="12">
         </label>
+        <label class="field field-schedule">
+          <span>Keep warm</span>
+          <select name="schedule">
+            <option value="allday" selected>All day</option>
+            <option value="window">Between…</option>
+          </select>
+        </label>
+        <div class="field field-window" hidden>
+          <span>From – to</span>
+          <div class="time-pair">
+            <input name="activeFrom" type="time" value="08:00" aria-label="Keep warm from">
+            <input name="activeTo" type="time" value="20:00" aria-label="Keep warm until">
+          </div>
+        </div>
         <button class="btn btn-primary" type="submit">Start pinging</button>
       </form>
       <p class="hint" id="interval-hint">Render free services spin down after 15 minutes without traffic, so any interval under 15 minutes keeps them warm.</p>
       <p class="form-error" id="form-error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="budget-card">
+      <div class="card-head">
+        <h2>Free instance hours</h2>
+        <span class="muted small" id="budget-period"></span>
+      </div>
+      <form id="budget-form" class="budget-form" autocomplete="off">
+        <label class="field">
+          <span>Monthly limit</span>
+          <select name="limitPreset">
+            <option value="750">Render free tier: 750 h</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label class="field field-limit-custom" hidden>
+          <span>Hours / month</span>
+          <input name="monthlyHourLimit" type="number" min="1" step="1" value="750">
+        </label>
+        <label class="field">
+          <span>Reserve for other use <em>(h)</em></span>
+          <input name="reservedHours" type="number" min="0" step="1" value="0">
+        </label>
+        <label class="field">
+          <span>Time zone</span>
+          <select name="timezone"></select>
+        </label>
+        <label class="check check-field"><input type="checkbox" name="countSelf"> keepwarm runs in this workspace</label>
+      </form>
+
+      <div class="meter-head">
+        <div><span class="meter-big" id="budget-used"></span> <span class="muted" id="budget-of"></span></div>
+        <span class="pill" id="budget-status"></span>
+      </div>
+      <div class="meter" id="budget-meter" role="img"></div>
+      <div class="legend" id="budget-legend"></div>
+
+      <div class="fit-row">
+        <p class="muted small" id="budget-explain"></p>
+        <form id="fit-form" class="fit-form">
+          <label class="field">
+            <span>Daily window starts at</span>
+            <input name="start" type="time" value="08:00">
+          </label>
+          <button class="btn btn-primary" type="submit">Fit services to limit</button>
+        </form>
+      </div>
+      <p class="form-error" id="fit-error" role="alert" hidden></p>
     </section>
 
     <section class="card">
@@ -124,6 +186,12 @@
       <input name="name" type="text" maxlength="100" aria-label="Name">
       <input name="intervalMinutes" type="number" min="1" max="60" step="1" aria-label="Interval in minutes">
       <span class="muted small">min</span>
+      <select name="schedule" aria-label="Keep warm">
+        <option value="allday">All day</option>
+        <option value="window">Between…</option>
+      </select>
+      <input name="activeFrom" type="time" aria-label="Keep warm from">
+      <input name="activeTo" type="time" aria-label="Keep warm until">
       <button class="btn btn-primary btn-sm" type="submit">Save</button>
       <button class="btn btn-ghost btn-sm" type="button" data-cancel>Cancel</button>
     </form>

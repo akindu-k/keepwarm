@@ -9,7 +9,18 @@ const state = {
   logNextBefore: null,
   failedOnly: false,
   editingId: null,
+  budget: null,
+  settings: null,
 };
+
+const toClock = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const fromClock = (text) => {
+  const [h, m] = text.split(':').map(Number);
+  return h * 60 + m;
+};
+const scheduleLabel = (m) => (m.activeStart == null ? 'all day' : `${toClock(m.activeStart)}–${toClock(m.activeEnd)}`);
+const fmtHours = (h) => `${Number(h.toFixed(h % 1 ? 1 : 0)).toLocaleString()} h`;
+const SERIES = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
 
 // ---------- helpers ----------
 
@@ -71,6 +82,7 @@ function debounce(fn, ms) {
 
 function statusOf(monitor, thresholdMs) {
   if (!monitor.enabled) return { cls: '', label: 'Paused' };
+  if (monitor.sleeping) return { cls: 'pill-sleep', label: 'Off hours' };
   const last = monitor.lastPing;
   if (!last) return { cls: '', label: 'Pending' };
   if (!last.ok) return { cls: 'pill-down', label: 'Down' };
@@ -163,7 +175,13 @@ function renderMonitors() {
   const monitors = state.overview?.monitors ?? [];
   // Keep in-progress edits across background re-renders.
   const openEdit = root.querySelector('.edit-form');
-  const draft = openEdit && { name: openEdit.name.value, intervalMinutes: openEdit.intervalMinutes.value };
+  const draft = openEdit && {
+    name: openEdit.name.value,
+    intervalMinutes: openEdit.intervalMinutes.value,
+    schedule: openEdit.schedule.value,
+    activeFrom: openEdit.activeFrom.value,
+    activeTo: openEdit.activeTo.value,
+  };
   if (!monitors.length) {
     root.innerHTML = '<div class="empty">No services yet. Add a Render URL above and keepwarm will start pinging it right away.</div>';
     return;
@@ -180,15 +198,22 @@ function renderMonitors() {
           <a class="monitor-url" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" data-stop>${esc(m.url)}</a>
           ${editing ? '<div data-edit-slot></div>' : ''}
         </div>
-        <div><div class="metric-label">Every</div><div class="metric-value">${m.intervalMinutes} min</div></div>
+        <div>
+          <div class="metric-label">Every</div>
+          <div class="metric-value">${m.intervalMinutes} min</div>
+          <div class="schedule-tag">${scheduleLabel(m)}</div>
+        </div>
         <div>
           <div class="metric-label">Last ping</div>
-          <div class="metric-value" data-ago="${last?.startedAt ?? ''}">${fmtAgo(last?.startedAt)}</div>
+          ${m.pinging
+            ? '<div class="metric-value">pinging…</div>'
+            : `<div class="metric-value" data-ago="${last?.startedAt ?? ''}">${fmtAgo(last?.startedAt)}</div>`}
           <div class="small muted">${last ? `${last.statusCode ?? 'error'} · ${fmtMs(last.latencyMs)}` : '&nbsp;'}</div>
         </div>
         <div>
           <div class="metric-label">Next ping</div>
           <div class="metric-value" data-next="${m.nextPingAt ?? ''}">${m.enabled ? fmtIn(m.nextPingAt) : 'paused'}</div>
+          ${m.sleeping ? `<div class="small muted">window opens ${toClock(m.activeStart)}</div>` : ''}
         </div>
         <div>
           <div class="metric-label">Uptime · p95</div>
@@ -212,6 +237,10 @@ function renderMonitors() {
       const form = $('#edit-template').content.firstElementChild.cloneNode(true);
       form.name.value = draft?.name ?? m.name;
       form.intervalMinutes.value = draft?.intervalMinutes ?? m.intervalMinutes;
+      form.schedule.value = draft?.schedule ?? (m.activeStart == null ? 'allday' : 'window');
+      form.activeFrom.value = draft?.activeFrom ?? toClock(m.activeStart ?? 480);
+      form.activeTo.value = draft?.activeTo ?? toClock(m.activeEnd ?? 1200);
+      syncWindowInputs(form);
       form.setAttribute('data-stop', '');
       slot.replaceWith(form);
     }
@@ -257,12 +286,17 @@ $('#monitors').addEventListener('submit', async (e) => {
     await api('PATCH', `/api/monitors/${id}`, {
       name: form.name.value,
       intervalMinutes: Number(form.intervalMinutes.value),
+      ...windowFromForm(form),
     });
     state.editingId = null;
     await refresh();
   } catch (err) {
     alert(err.message);
   }
+});
+
+$('#monitors').addEventListener('change', (e) => {
+  if (e.target.name === 'schedule') syncWindowInputs(e.target.form);
 });
 
 $('#monitors').addEventListener('mousemove', (e) => {
@@ -288,6 +322,21 @@ const addForm = $('#add-form');
 const customField = $('.field-custom');
 const hint = $('#interval-hint');
 const defaultHint = hint.textContent;
+
+// Shows the from/to inputs only when "Between…" is selected.
+function syncWindowInputs(form) {
+  const on = form.schedule.value === 'window';
+  const wrapper = form.querySelector('.field-window');
+  if (wrapper) wrapper.hidden = !on;
+  else for (const input of [form.activeFrom, form.activeTo]) input.hidden = !on;
+}
+
+function windowFromForm(form) {
+  if (form.schedule.value !== 'window') return { activeStart: null, activeEnd: null };
+  return { activeStart: fromClock(form.activeFrom.value), activeEnd: fromClock(form.activeTo.value) };
+}
+
+addForm.schedule.addEventListener('change', () => syncWindowInputs(addForm));
 
 function currentInterval() {
   const v = addForm.intervalMinutes.value;
@@ -317,9 +366,11 @@ addForm.addEventListener('submit', async (e) => {
       url: addForm.url.value,
       name: addForm.name.value || undefined,
       intervalMinutes: currentInterval(),
+      ...windowFromForm(addForm),
     });
     addForm.reset();
     updateHint();
+    syncWindowInputs(addForm);
     await refresh();
     selectMonitor(monitor.id);
   } catch (err) {
@@ -562,6 +613,11 @@ function connectEvents() {
   const es = new EventSource('/api/events');
   es.onopen = () => { live.dataset.state = 'open'; label.textContent = 'Live'; };
   es.onerror = () => { live.dataset.state = 'error'; label.textContent = 'Reconnecting…'; };
+  es.addEventListener('ping-start', (e) => {
+    const { monitorId } = JSON.parse(e.data);
+    const m = state.overview?.monitors.find((x) => x.id === monitorId);
+    if (m) { m.pinging = true; renderMonitors(); }
+  });
   es.addEventListener('ping', (e) => {
     const { monitorId, ping } = JSON.parse(e.data);
     addToFeed(monitorId, ping);
@@ -578,9 +634,13 @@ function connectEvents() {
 
 async function refresh() {
   try {
-    state.overview = await api('GET', `/api/overview?window=${state.window}`);
+    [state.overview, state.budget] = await Promise.all([
+      api('GET', `/api/overview?window=${state.window}`),
+      api('GET', '/api/budget'),
+    ]);
     renderSummary();
     renderMonitors();
+    renderBudget();
     if (state.selectedId) {
       if (!state.overview.monitors.some((m) => m.id === state.selectedId)) closeDetail();
       else await loadDetail();
@@ -602,6 +662,143 @@ setInterval(() => {
 setInterval(refresh, 30_000);
 window.addEventListener('resize', debounce(() => state.detail && renderChart(state.detail), 150));
 
+// ---------- free-hour budget ----------
+
+const budgetForm = $('#budget-form');
+
+function fillTimezones(selected) {
+  const select = budgetForm.timezone;
+  if (select.options.length) return;
+  const zones = Intl.supportedValuesOf?.('timeZone') ?? [selected];
+  if (!zones.includes('UTC')) zones.unshift('UTC');
+  if (!zones.includes(selected)) zones.unshift(selected);
+  select.innerHTML = zones.map((z) => `<option value="${esc(z)}">${esc(z.replace(/_/g, ' '))}</option>`).join('');
+}
+
+function renderSettings() {
+  const st = state.settings;
+  fillTimezones(st.timezone);
+  const preset = st.monthlyHourLimit === 750 ? '750' : 'custom';
+  budgetForm.limitPreset.value = preset;
+  $('.field-limit-custom').hidden = preset !== 'custom';
+  budgetForm.monthlyHourLimit.value = st.monthlyHourLimit;
+  budgetForm.reservedHours.value = st.reservedHours;
+  budgetForm.timezone.value = st.timezone;
+  budgetForm.countSelf.checked = st.countSelf;
+}
+
+async function saveSettings(changes) {
+  try {
+    state.settings = await api('PUT', '/api/settings', changes);
+    renderSettings();
+    await refresh();
+  } catch (err) {
+    alert(err.message);
+    renderSettings();
+  }
+}
+
+budgetForm.addEventListener('change', (e) => {
+  const f = budgetForm;
+  if (e.target.name === 'limitPreset') {
+    const custom = f.limitPreset.value === 'custom';
+    $('.field-limit-custom').hidden = !custom;
+    if (!custom) saveSettings({ monthlyHourLimit: 750 });
+    else f.monthlyHourLimit.focus();
+    return;
+  }
+  if (e.target.name === 'monthlyHourLimit') return saveSettings({ monthlyHourLimit: Number(f.monthlyHourLimit.value) });
+  if (e.target.name === 'reservedHours') return saveSettings({ reservedHours: Number(f.reservedHours.value) });
+  if (e.target.name === 'timezone') return saveSettings({ timezone: f.timezone.value });
+  if (e.target.name === 'countSelf') return saveSettings({ countSelf: f.countSelf.checked });
+});
+budgetForm.addEventListener('submit', (e) => e.preventDefault());
+
+function renderBudget() {
+  const b = state.budget;
+  if (!b) return;
+  const limit = b.monthlyHourLimit;
+  $('#budget-period').textContent = `${b.month} · ${b.days} days · ${b.timezone}`;
+  $('#budget-used').textContent = fmtHours(b.projectedHours);
+  $('#budget-of').textContent = `projected of ${fmtHours(limit)}`;
+  const status = $('#budget-status');
+  status.className = `pill ${b.withinLimit ? 'pill-up' : 'pill-down'}`;
+  status.textContent = b.withinLimit ? `${fmtHours(b.remainingHours)} to spare` : `Over by ${fmtHours(-b.remainingHours)}`;
+
+  // Segments: one per monitor (fixed colour order by id), then keepwarm itself, then reserved.
+  const segments = b.monitors
+    .filter((m) => m.monthlyHours > 0)
+    .map((m) => {
+      const slot = state.overview?.monitors.findIndex((x) => x.id === m.id) ?? 0;
+      return { label: m.name, hours: m.monthlyHours, color: `var(${SERIES[slot % SERIES.length]})`, detail: `${m.hoursPerDay} h/day` };
+    });
+  if (b.selfHours) segments.push({ label: 'keepwarm itself', hours: b.selfHours, color: 'var(--text-3)', detail: '24 h/day' });
+  if (b.reservedHours) segments.push({ label: 'Reserved', hours: b.reservedHours, color: 'var(--empty)', detail: 'other use' });
+
+  const scale = Math.max(limit, b.projectedHours);
+  let used = 0;
+  const parts = [];
+  for (const seg of segments) {
+    const within = Math.max(0, Math.min(seg.hours, limit - used));
+    const over = seg.hours - within;
+    if (within > 0) parts.push(`<i style="flex:${within / scale};background:${seg.color}" data-tip="${esc(seg.label)}|${seg.hours}|${esc(seg.detail)}"></i>`);
+    if (over > 0) parts.push(`<i class="over" style="flex:${over / scale}" data-tip="${esc(seg.label)} (over the limit)|${seg.hours}|${esc(seg.detail)}"></i>`);
+    used += seg.hours;
+  }
+  if (b.projectedHours < limit) parts.push(`<i style="flex:${(limit - b.projectedHours) / scale};background:transparent"></i>`);
+  parts.push(`<span class="limit-mark" style="left:calc(${(limit / scale) * 100}% - 1px)" title="Limit"></span>`);
+  const meter = $('#budget-meter');
+  meter.innerHTML = parts.join('');
+  meter.setAttribute('aria-label', `${b.projectedHours} of ${limit} hours projected this month`);
+
+  $('#budget-legend').innerHTML = segments.length
+    ? segments.map((s) => `<span><i class="sw" style="background:${s.color}"></i>${esc(s.label)} · ${fmtHours(s.hours)}</span>`).join('')
+    : '<span>No active services.</span>';
+
+  const active = b.monitors.filter((m) => m.monthlyHours > 0).length || 1;
+  const perDay = (limit - b.reservedHours - b.selfHours) / b.days;
+  $('#budget-explain').textContent =
+    `${fmtHours(limit)} over ${b.days} days is ${(limit / b.days).toFixed(2)} h of awake time per day for the whole workspace. ` +
+    `Fitting splits what's left evenly (${Math.max(0, perDay / active).toFixed(2)} h/day each for ${active} service${active === 1 ? '' : 's'}) ` +
+    `and allows 15 minutes after the last ping before Render spins the service down.`;
+}
+
+$('#budget-meter').addEventListener('mousemove', (e) => {
+  const seg = e.target.closest('[data-tip]');
+  if (!seg) return hideTooltip();
+  const [label, hours, detail] = seg.dataset.tip.split('|');
+  showTooltip(`<div>${label}</div><div><b>${esc(fmtHours(Number(hours)))}</b> this month · ${detail}</div>`, e);
+});
+$('#budget-meter').addEventListener('mouseleave', hideTooltip);
+
+$('#fit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const error = $('#fit-error');
+  error.hidden = true;
+  const button = e.target.querySelector('button');
+  button.disabled = true;
+  try {
+    await api('POST', '/api/budget/fit', { start: e.target.start.value });
+    await refresh();
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function loadSettings() {
+  state.settings = await api('GET', '/api/settings');
+  // First run: default to the viewer's time zone.
+  if (!state.settings.timezone) {
+    state.settings = await api('PUT', '/api/settings', {
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    });
+  }
+  renderSettings();
+}
+
 // ---------- theme ----------
 
 function applyTheme(theme) {
@@ -617,5 +814,5 @@ $('#theme').addEventListener('click', () => {
   try { localStorage.setItem('keepwarm-theme', next); } catch { /* storage unavailable */ }
 });
 
-refresh();
+loadSettings().catch(console.error).finally(refresh);
 connectEvents();

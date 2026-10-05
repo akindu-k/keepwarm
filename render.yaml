@@ -16,5 +16,7 @@ services:
         sync: false
       - key: SEED_MONITORS
         sync: false
+      - key: TIMEZONE
+        sync: false
       - key: ALERT_WEBHOOK_URL
         sync: false

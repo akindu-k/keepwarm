@@ -8,6 +8,8 @@ Render's free web services spin down after **15 minutes without inbound traffic*
 - **Dashboard** with live status, countdown to the next ping, uptime, p95 latency and cold-start counts
 - **Per-service detail**: response-time chart, availability strip, incidents, and a searchable request log
 - **Live activity feed** streamed over Server-Sent Events
+- **Free-hour budget**: pick your monthly instance-hour limit (Render free = 750 h), see projected usage, and fit every service into it with one click
+- **Daily schedules**: keep a service warm only between set hours (e.g. 08:00–19:45)
 - **Cold-start detection**: a successful ping slower than 10s (configurable) is flagged as a cold start
 - **Alerts** to Slack or Discord when a service goes down or recovers
 - **Prometheus metrics** at `/metrics`, health check at `/healthz`
@@ -34,7 +36,20 @@ Copy `.env.example` to `.env` to configure it; `npm start` loads it automaticall
 | 1–14 min | Service stays awake. 10 min is a good default; 14 min uses the fewest requests. |
 | 15+ min | Render will put the service to sleep between pings, so you'll still get cold starts. The dashboard warns you. |
 
-> ⚠️ **Free instance hours.** Render gives each workspace **750 free instance hours per month**, and an awake service uses them around the clock (~730 h/month). Keeping **one** free service awake all month uses nearly the whole allowance. If you keep several services warm at once, you'll run out before the month ends and Render will suspend your free services until the next month. Keep warm only what needs it, or pause monitors when you don't.
+## Staying within the free instance hours
+
+Render gives each workspace **750 free instance hours per month**, and a service uses them whenever it's awake. One service kept awake 24/7 uses 744 h in a 31-day month, so keeping two or more awake all day runs out before the month ends, and Render then suspends the workspace's free services until the next month.
+
+The **Free instance hours** card on the dashboard handles this:
+
+- **Monthly limit**: *Render free tier: 750 h*, or a custom number.
+- **Reserve for other use**: hours to set aside for real traffic outside keepwarm's windows.
+- **Time zone**: the zone daily windows and the month boundaries are evaluated in.
+- **keepwarm runs in this workspace**: tick this if keepwarm itself is a free service in the same workspace (it then counts 24 h/day).
+- A meter shows projected usage for the current month against the limit.
+- **Fit services to limit** splits the available hours evenly between the active services and gives each one a daily window starting at the time you pick. For example, two services in a 31-day month get **08:00–19:45** each (2 × 12 h × 31 = 744 h ≤ 750). Shorter months get longer windows.
+
+Usage is estimated as *window length + 15 minutes* per day (Render spins a service down 15 minutes after its last request). Outside its window a service shows **Off hours** and isn't pinged. You can also set a window per service when adding or editing it.
 
 ## Deploying keepwarm
 
@@ -59,8 +74,11 @@ Deploy with the included `render.yaml` blueprint (**New → Blueprint** in the R
 
 ```
 DASHBOARD_PASSWORD=<something long>
-SEED_MONITORS=https://md-to-pdf-zckb.onrender.com/=10,https://things-to-do-xdmm.onrender.com/=10
+SEED_MONITORS=https://md-to-pdf-zckb.onrender.com/=10@08:00-19:45,https://things-to-do-xdmm.onrender.com/=10@08:00-19:45
+TIMEZONE=Asia/Colombo
 ```
+
+Deploy keepwarm in a **separate Render workspace** from the services it keeps warm. Every workspace has its own 750 h, and keepwarm uses about 744 h of its workspace just by staying awake.
 
 ## Configuration
 
@@ -69,7 +87,10 @@ SEED_MONITORS=https://md-to-pdf-zckb.onrender.com/=10,https://things-to-do-xdmm.
 | `PORT` | `3000` | HTTP port |
 | `DB_PATH` | `data/keepwarm.db` | SQLite database file |
 | `DASHBOARD_PASSWORD` | – | If set, the UI, API and `/metrics` require HTTP Basic auth (any username). `/healthz` stays public. |
-| `SEED_MONITORS` | – | `url=minutes` pairs, comma-separated, created on startup if missing |
+| `SEED_MONITORS` | – | `url=minutes[@HH:MM-HH:MM]`, comma-separated, created on startup if missing |
+| `MONTHLY_HOUR_LIMIT` | `750` | Default monthly instance-hour limit for the budget card |
+| `TIMEZONE` | viewer's zone | Default IANA time zone for daily windows, e.g. `Asia/Colombo` |
+| `COUNT_SELF` | `false` | Default for "keepwarm runs in this workspace" |
 | `ALERT_WEBHOOK_URL` | – | Slack/Discord incoming webhook for down/recovered alerts |
 | `COLD_START_THRESHOLD_MS` | `10000` | Successful pings slower than this count as cold starts |
 | `RETENTION_DAYS` | `7` | Ping history older than this is deleted hourly |
@@ -90,9 +111,9 @@ SEED_MONITORS=https://md-to-pdf-zckb.onrender.com/=10,https://things-to-do-xdmm.
 | Method & path | Description |
 |---|---|
 | `GET /api/monitors` | List monitors with last ping and next scheduled ping |
-| `POST /api/monitors` | Create `{ "url": "...", "intervalMinutes": 10, "name": "optional" }` |
+| `POST /api/monitors` | Create `{ "url": "...", "intervalMinutes": 10, "name": "optional", "activeStart": 480, "activeEnd": 1185 }` (window in minutes after midnight; omit or `null` for all day) |
 | `GET /api/monitors/:id` | One monitor |
-| `PATCH /api/monitors/:id` | Update any of `name`, `url`, `intervalMinutes`, `enabled` |
+| `PATCH /api/monitors/:id` | Update any of `name`, `url`, `intervalMinutes`, `enabled`, `activeStart`, `activeEnd` |
 | `DELETE /api/monitors/:id` | Delete a monitor and its history |
 | `POST /api/monitors/:id/ping` | Ping now |
 | `GET /api/overview?window=1h\|24h\|7d` | All monitors with summary stats and sparkline data |
@@ -100,6 +121,9 @@ SEED_MONITORS=https://md-to-pdf-zckb.onrender.com/=10,https://things-to-do-xdmm.
 | `GET /api/monitors/:id/pings?limit=50&before=<cursor>&status=failed` | Request log, newest first |
 | `GET /api/events` | Server-Sent Events stream of ping results |
 | `GET /metrics` | Prometheus metrics |
+| `GET /api/settings` / `PUT /api/settings` | Budget settings: `monthlyHourLimit`, `reservedHours`, `timezone`, `countSelf` |
+| `GET /api/budget` | Projected instance hours for the current month, per service and in total |
+| `POST /api/budget/fit` | `{ "start": "08:00" }` gives every active service a daily window that fits the limit |
 | `GET /healthz` | Health check |
 
 ### Prometheus metrics
