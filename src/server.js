@@ -4,12 +4,18 @@ import { Scheduler } from './scheduler.js';
 import { Metrics } from './metrics.js';
 import { Alerter } from './alerts.js';
 import { createApp } from './app.js';
+import { seedMonitors } from './seed.js';
+import { ping } from './pinger.js';
 
 const store = createStore(openDb(config.dbPath));
 const scheduler = new Scheduler(store, { timeoutMs: config.requestTimeoutMs });
 const metrics = new Metrics({ coldStartThresholdMs: config.coldStartThresholdMs });
 const alerter = new Alerter(store, { webhookUrl: config.alertWebhookUrl });
 const app = createApp({ store, scheduler, config, metrics });
+
+for (const m of seedMonitors(store, config.seedMonitors, config)) {
+  console.log(`[seed] added ${m.url} every ${m.intervalMinutes} min`);
+}
 
 scheduler.on('ping', ({ monitor, ping }) => {
   const status = ping.statusCode ?? ping.error;
@@ -27,6 +33,13 @@ const prune = () => {
 prune();
 const pruneTimer = setInterval(prune, 60 * 60_000);
 pruneTimer.unref();
+
+// Keep this instance awake too when it runs on a host that sleeps idle services.
+if (config.selfPingUrl) {
+  const selfPing = setInterval(() => ping(config.selfPingUrl, { timeoutMs: 30_000 }), 10 * 60_000);
+  selfPing.unref();
+  console.log(`[self-ping] ${config.selfPingUrl} every 10 min`);
+}
 
 scheduler.start();
 const server = app.listen(config.port, () => {

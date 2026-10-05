@@ -2,10 +2,12 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { monitorsRouter } from './routes/monitors.js';
 import { observabilityRouter } from './routes/observability.js';
+import { basicAuth } from './auth.js';
 
 export function createApp({ store, scheduler, config, metrics }) {
   const app = express();
   app.disable('x-powered-by');
+  if (config.dashboardPassword) app.use(basicAuth(config.dashboardPassword));
   app.use(express.json({ limit: '16kb' }));
 
   app.get('/healthz', (_req, res) => {

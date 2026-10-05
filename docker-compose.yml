@@ -1,0 +1,14 @@
+services:
+  keepwarm:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      - keepwarm-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  keepwarm-data:
