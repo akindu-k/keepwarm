@@ -14,4 +14,9 @@ export const config = {
   // Cold starts on Render's free tier can take close to a minute.
   requestTimeoutMs: int(process.env.REQUEST_TIMEOUT_MS, 90_000),
   maxMonitors: int(process.env.MAX_MONITORS, 50),
+  // A successful ping slower than this is counted as a cold start.
+  coldStartThresholdMs: int(process.env.COLD_START_THRESHOLD_MS, 10_000),
+  retentionDays: int(process.env.RETENTION_DAYS, 7),
+  // Optional Slack/Discord-compatible webhook notified when a monitor goes down or recovers.
+  alertWebhookUrl: process.env.ALERT_WEBHOOK_URL || null,
 };

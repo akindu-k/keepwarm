@@ -1,6 +1,7 @@
 import { openDb, createStore } from '../src/db.js';
 import { Scheduler } from '../src/scheduler.js';
 import { createApp } from '../src/app.js';
+import { Metrics } from '../src/metrics.js';
 
 export const testConfig = {
   allowAnyHost: false,
@@ -8,6 +9,7 @@ export const testConfig = {
   maxIntervalMinutes: 60,
   requestTimeoutMs: 1000,
   maxMonitors: 5,
+  coldStartThresholdMs: 10_000,
 };
 
 export async function startTestServer({ pingFn, config = {} } = {}) {
@@ -20,7 +22,9 @@ export async function startTestServer({ pingFn, config = {} } = {}) {
       return { startedAt: Date.now(), latencyMs: 42, statusCode: 200, ok: true, error: null };
     }),
   });
-  const app = createApp({ store, scheduler, config: { ...testConfig, ...config } });
+  const metrics = new Metrics({ coldStartThresholdMs: testConfig.coldStartThresholdMs });
+  scheduler.on('ping', ({ monitor, ping }) => metrics.observe(monitor, ping));
+  const app = createApp({ store, scheduler, metrics, config: { ...testConfig, ...config } });
   const server = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
