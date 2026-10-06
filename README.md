@@ -74,10 +74,14 @@ Keeping a service awake isn't free either: every hour it's awake counts against 
     <td width="50%"><img src="docs/screenshots/budget-light.webp" alt="Free instance hours meter at 744 of 750 hours, with budget settings and the live activity feed"><br><sub><b>Free instance hours:</b> projected usage per service against the 750 h limit, and auto-fit. Live activity on the right.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/add-dark.webp" alt="The Add a service panel"><br><sub><b>Add a service:</b> URL, interval and an optional daily window.</sub></td>
-    <td width="50%" align="center"><img src="docs/screenshots/mobile-dark.webp" width="240" alt="keepwarm on a phone in dark mode"><br><sub><b>On a phone</b></sub></td>
+    <td colspan="2"><img src="docs/screenshots/add-dark.webp" alt="The Add a service panel"><br><sub><b>Add a service:</b> URL, interval and an optional daily window.</sub></td>
   </tr>
 </table>
+
+<p align="center">
+  <img src="docs/screenshots/mobile-dark.webp" width="280" alt="keepwarm on a phone in dark mode"><br>
+  <sub>On a phone, cards stack and the header collapses to icons.</sub>
+</p>
 
 ## How it works
 
