@@ -10,6 +10,8 @@
 </p>
 
 <p align="center">
+  <a href="https://keepwarm-t741.onrender.com"><strong>Live dashboard →</strong></a> <sub>(password-protected)</sub>
+  <br><br>
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#how-it-works">How it works</a> ·
@@ -174,7 +176,7 @@ Copy `.env.example` to `.env`; `npm start` loads it automatically.
 
 ## Deploy
 
-keepwarm has to run somewhere that's always on, otherwise it can't ping anything.
+keepwarm has to run somewhere that's always on, otherwise it can't ping anything. The live instance at **[keepwarm-t741.onrender.com](https://keepwarm-t741.onrender.com)** runs on Render's free tier as described below.
 
 - **Docker (any VPS or always-on host):** `docker compose up -d --build`. Ping history is stored in the `keepwarm-data` volume.
 - **Render free tier:** use the included `render.yaml` blueprint (**New → Blueprint**) and set:
