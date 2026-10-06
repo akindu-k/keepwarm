@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" width="72" height="72" alt="">
+  <img src="public/favicon.svg" width="72" height="72" alt="">
 </p>
 
 <h1 align="center">keepwarm</h1>
@@ -231,10 +231,11 @@ src/
   routes/             monitors, observability (stats, log, SSE), budget
 public/
   index.html          Dashboard markup and icons
+  favicon.svg         Logo, also used as the favicon (.ico and apple-touch-icon are PNG renders of it)
   styles.css          All styles, light and dark themes
   app.js              Dashboard logic, charts, live updates
 test/                 node:test suites
-docs/                 Logo and screenshots
+docs/                 Screenshots
 render.yaml           Render blueprint
 Dockerfile, docker-compose.yml
 ```
