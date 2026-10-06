@@ -177,7 +177,7 @@ function renderSummary() {
     tile('Services', monitors.length, `${monitors.length - active.length} paused`),
     tile('Up now', active.length ? `${up}/${active.length}` : '—', 'based on the last ping'),
     tile(`Uptime · ${w}`, fmtPct(uptime), 'across all services'),
-    tile(`Cold starts · ${w}`, totals.cold, totals.cold ? 'try a shorter interval' : 'none detected'),
+    tile(`Cold starts · ${w}`, totals.cold, totals.cold ? (active.some((m) => m.activeStart != null) ? 'normal at window start' : 'try a shorter interval') : 'none detected'),
     tile(`Pings · ${w}`, totals.total.toLocaleString(), `${(totals.total - totals.ok).toLocaleString()} failed`),
   ].join('');
   renderHero();
@@ -340,7 +340,7 @@ function renderMonitors() {
 
         ${editing ? '<div data-edit-slot></div>' : ''}
 
-        ${m.sparkline.some((p) => p.count)
+        ${m.sparkline.some((p) => p.avgLatencyMs != null || p.failures)
           ? `<div><div class="metric-label spark-label">Response time · ${state.window}</div><div class="spark-cell" data-spark="${m.id}">${sparkline(m.sparkline, threshold)}</div></div>`
           : ''}
 
