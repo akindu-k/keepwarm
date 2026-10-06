@@ -18,7 +18,6 @@ const fromClock = (text) => {
   const [h, m] = text.split(':').map(Number);
   return h * 60 + m;
 };
-const scheduleLabel = (m) => (m.activeStart == null ? 'all day' : `${toClock(m.activeStart)}–${toClock(m.activeEnd)}`);
 const fmtHours = (h) => `${Number(h.toFixed(h % 1 ? 1 : 0)).toLocaleString()} h`;
 const SERIES = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
 
@@ -82,7 +81,8 @@ function debounce(fn, ms) {
 
 function statusOf(monitor, thresholdMs) {
   if (!monitor.enabled) return { cls: '', label: 'Paused' };
-  if (monitor.sleeping) return { cls: 'pill-sleep', label: 'Off hours' };
+  if (monitor.pinging) return { cls: 'pill-busy', label: 'Pinging…' };
+  if (monitor.sleeping) return { cls: 'pill-sleep', label: 'Asleep' };
   const last = monitor.lastPing;
   if (!last) return { cls: '', label: 'Pending' };
   if (!last.ok) return { cls: 'pill-down', label: 'Down' };
@@ -94,6 +94,37 @@ function resultPill(ping, thresholdMs) {
   if (!ping.ok) return '<span class="pill pill-down">Failed</span>';
   if (ping.latencyMs >= thresholdMs) return '<span class="pill pill-cold">Cold</span>';
   return '<span class="pill pill-up">OK</span>';
+}
+
+const icon = (name) => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+// Daily windows are evaluated in the budget time zone, not the viewer's.
+const scheduleZone = () => state.settings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+function minuteNowIn(timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', hour: 'numeric', minute: 'numeric' }).formatToParts(new Date());
+    const get = (t) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+    return get('hour') * 60 + get('minute');
+  } catch {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  }
+}
+
+function fmtUntil(ts) {
+  const m = Math.max(0, Math.round((ts - Date.now()) / 60_000));
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+// ---------- toasts ----------
+
+function toast(message, { error = false } = {}) {
+  const el = document.createElement('div');
+  el.className = `toast ${error ? 'err' : ''}`;
+  el.innerHTML = `${icon(error ? 'alert' : 'check')}<span>${esc(message)}</span>`;
+  $('#toasts').append(el);
+  setTimeout(() => el.remove(), error ? 6000 : 3000);
 }
 
 // ---------- tooltip ----------
@@ -149,6 +180,64 @@ function renderSummary() {
     tile(`Cold starts · ${w}`, totals.cold, totals.cold ? 'try a shorter interval' : 'none detected'),
     tile(`Pings · ${w}`, totals.total.toLocaleString(), `${(totals.total - totals.ok).toLocaleString()} failed`),
   ].join('');
+  renderHero();
+}
+
+function renderHero() {
+  const monitors = state.overview?.monitors ?? [];
+  const active = monitors.filter((m) => m.enabled);
+  const awake = active.filter((m) => !m.sleeping);
+  const down = awake.filter((m) => m.lastPing && !m.lastPing.ok);
+  const cold = awake.filter((m) => m.lastPing?.ok && m.lastPing.latencyMs >= m.stats.coldStarts.thresholdMs);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const b = state.budget;
+  const budgetLine = b
+    ? ` · <b>${esc(fmtHours(b.projectedHours))}</b> of ${esc(fmtHours(b.monthlyHourLimit))} free hours projected this month`
+    : '';
+
+  let tone, title, sub;
+  if (!monitors.length) {
+    tone = 'neutral';
+    title = 'No services yet';
+    sub = 'Add a Render URL and keepwarm will start keeping it awake.';
+  } else if (!active.length) {
+    tone = 'neutral';
+    title = 'All services are paused';
+    sub = 'Resume a service to start pinging it again.';
+  } else if (down.length) {
+    tone = 'bad';
+    title = `${plural(down.length, 'service')} not responding`;
+    sub = down.map((m) => esc(m.name)).join(', ') + ` returned an error on the last ping${budgetLine}`;
+  } else if (!awake.length) {
+    tone = 'sleep';
+    const next = Math.min(...active.map((m) => m.nextPingAt ?? Infinity));
+    title = active.length === 1 ? 'Asleep for the night' : `All ${active.length} services are asleep`;
+    sub = Number.isFinite(next)
+      ? `Outside keep-warm hours. Pinging resumes at <b>${esc(new Date(next).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</b> (in <b data-until="${next}">${fmtUntil(next)}</b>)${budgetLine}`
+      : `Outside keep-warm hours${budgetLine}`;
+  } else {
+    tone = cold.length ? 'warn' : 'good';
+    const next = Math.min(...awake.map((m) => m.nextPingAt ?? Infinity));
+    title = awake.length === active.length
+      ? (active.length === 1 ? 'Your service is warm' : `All ${active.length} services are warm`)
+      : `${awake.length} of ${active.length} services warm`;
+    sub = (cold.length ? `${plural(cold.length, 'cold start')} on the last ping. ` : '') +
+      (Number.isFinite(next) ? `Next ping <b data-next="${next}">${fmtIn(next)}</b>` : '') + budgetLine;
+  }
+  if (b && !b.withinLimit && tone !== 'bad') {
+    tone = 'warn';
+    sub = `Projected <b>${esc(fmtHours(b.projectedHours))}</b> is over the ${esc(fmtHours(b.monthlyHourLimit))} free limit. Use <b>Fit services to limit</b> below or shorten the keep-warm windows.`;
+  }
+  const hero = $('#hero');
+  hero.dataset.tone = tone;
+  hero.querySelector('use').setAttribute('href', `#i-${{ bad: 'alert', warn: 'alert', sleep: 'moon', good: 'check' }[tone] ?? 'flame'}`);
+  $('#hero-title').textContent = title;
+  $('#hero-sub').innerHTML = sub;
+
+  const zone = scheduleZone();
+  $('#services-sub').textContent = monitors.length
+    ? `${plural(monitors.length, 'service')} · schedules in ${zone.replace(/_/g, ' ')} · click a card for charts and the request log`
+    : '';
 }
 
 // ---------- monitor list ----------
@@ -170,6 +259,27 @@ function sparkline(points, thresholdMs) {
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${bars}</svg>`;
 }
 
+// A 24h bar with the keep-warm window shaded and a marker at the current time.
+function timeline(m, nowMin) {
+  const pct = (min) => `${((min / 1440) * 100).toFixed(2)}%`;
+  const seg = (a, b) => `<i class="win" style="left:${pct(a)};width:${pct(b - a)}"></i>`;
+  let wins;
+  if (m.activeStart == null) wins = seg(0, 1440);
+  else if (m.activeStart < m.activeEnd) wins = seg(m.activeStart, m.activeEnd);
+  else wins = seg(m.activeStart, 1440) + seg(0, m.activeEnd);
+  const perDay = state.budget?.monitors.find((x) => x.id === m.id)?.hoursPerDay;
+  const label = m.activeStart == null ? 'all day' : `${toClock(m.activeStart)}–${toClock(m.activeEnd)}`;
+  return `
+    <div class="timeline-wrap">
+      <div class="timeline-head">
+        <span>Warm <b>${label}</b> · every <b>${m.intervalMinutes} min</b></span>
+        ${perDay != null && m.enabled ? `<span>≈ ${perDay} h/day</span>` : ''}
+      </div>
+      <div class="timeline" role="img" aria-label="Kept warm ${label}">${wins}<span class="now" style="left:${pct(nowMin)}" title="Now"></span></div>
+      <div class="timeline-ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+    </div>`;
+}
+
 function renderMonitors() {
   const root = $('#monitors');
   const monitors = state.overview?.monitors ?? [];
@@ -183,51 +293,66 @@ function renderMonitors() {
     activeTo: openEdit.activeTo.value,
   };
   if (!monitors.length) {
-    root.innerHTML = '<div class="empty">No services yet. Add a Render URL above and keepwarm will start pinging it right away.</div>';
+    root.innerHTML = `<div class="empty"><strong>Nothing to keep warm yet</strong>
+      Add a Render URL and keepwarm will ping it right away, then on your schedule.
+      <div><button class="btn btn-primary" type="button" data-open-add>${icon('plus')}Add your first service</button></div></div>`;
     return;
   }
+  const nowMin = minuteNowIn(scheduleZone());
   root.innerHTML = monitors.map((m) => {
     const threshold = m.stats.coldStarts.thresholdMs;
     const st = statusOf(m, threshold);
     const last = m.lastPing;
     const editing = state.editingId === m.id;
+    let nextValue, nextSub;
+    if (!m.enabled) { nextValue = 'paused'; nextSub = 'resume to ping'; }
+    else if (m.sleeping) { nextValue = `at ${toClock(m.activeStart)}`; nextSub = `<span data-until="${m.nextPingAt ?? ''}">in ${m.nextPingAt ? fmtUntil(m.nextPingAt) : '—'}</span>`; }
+    else { nextValue = `<span data-next="${m.nextPingAt ?? ''}">${fmtIn(m.nextPingAt)}</span>`; nextSub = `every ${m.intervalMinutes} min`; }
     return `
-      <div class="monitor ${m.enabled ? '' : 'paused'} ${state.selectedId === m.id ? 'selected' : ''}" data-id="${m.id}">
-        <div class="monitor-main">
-          <div class="monitor-name"><span class="pill ${st.cls}">${st.label}</span><span>${esc(m.name)}</span></div>
-          <a class="monitor-url" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" data-stop>${esc(m.url)}</a>
-          ${editing ? '<div data-edit-slot></div>' : ''}
+      <article class="monitor ${m.enabled ? '' : 'paused'} ${state.selectedId === m.id ? 'selected' : ''}" data-id="${m.id}">
+        <div class="monitor-top">
+          <div class="monitor-main">
+            <div class="monitor-name" title="${esc(m.name)}">${esc(m.name)}</div>
+            <a class="monitor-url" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" data-stop>${esc(m.url)}</a>
+          </div>
+          <span class="pill ${st.cls}">${st.label}</span>
         </div>
-        <div>
-          <div class="metric-label">Every</div>
-          <div class="metric-value">${m.intervalMinutes} min</div>
-          <div class="schedule-tag">${scheduleLabel(m)}</div>
+
+        ${timeline(m, nowMin)}
+
+        <div class="monitor-metrics">
+          <div>
+            <div class="metric-label">Next ping</div>
+            <div class="metric-value">${nextValue}</div>
+            <div class="metric-sub">${nextSub}</div>
+          </div>
+          <div>
+            <div class="metric-label">Last ping</div>
+            <div class="metric-value" data-ago="${last?.startedAt ?? ''}">${fmtAgo(last?.startedAt)}</div>
+            <div class="metric-sub">${last ? `${last.statusCode ?? 'error'} · ${fmtMs(last.latencyMs)}` : 'no pings yet'}</div>
+          </div>
+          <div>
+            <div class="metric-label">Uptime · ${state.window}</div>
+            <div class="metric-value">${fmtPct(m.stats.uptimePct)}</div>
+            <div class="metric-sub">p95 ${fmtMs(m.stats.latency.p95)} · ${m.stats.coldStarts.count} cold</div>
+          </div>
         </div>
-        <div>
-          <div class="metric-label">Last ping</div>
-          ${m.pinging
-            ? '<div class="metric-value">pinging…</div>'
-            : `<div class="metric-value" data-ago="${last?.startedAt ?? ''}">${fmtAgo(last?.startedAt)}</div>`}
-          <div class="small muted">${last ? `${last.statusCode ?? 'error'} · ${fmtMs(last.latencyMs)}` : '&nbsp;'}</div>
+
+        ${editing ? '<div data-edit-slot></div>' : ''}
+
+        ${m.sparkline.some((p) => p.count)
+          ? `<div><div class="metric-label spark-label">Response time · ${state.window}</div><div class="spark-cell" data-spark="${m.id}">${sparkline(m.sparkline, threshold)}</div></div>`
+          : ''}
+
+        <div class="monitor-foot" data-stop>
+          <div class="actions">
+            <button class="btn btn-sm" data-action="ping" title="Send a ping now">${icon('bolt')}Ping now</button>
+            <button class="btn btn-sm" data-action="toggle">${icon(m.enabled ? 'pause' : 'play')}${m.enabled ? 'Pause' : 'Resume'}</button>
+            <button class="btn btn-sm" data-action="edit">${icon('edit')}Edit</button>
+          </div>
+          <button class="btn btn-sm btn-ghost btn-danger" data-action="delete" title="Delete" aria-label="Delete ${esc(m.name)}">${icon('trash')}</button>
         </div>
-        <div>
-          <div class="metric-label">Next ping</div>
-          <div class="metric-value" data-next="${m.nextPingAt ?? ''}">${m.enabled ? fmtIn(m.nextPingAt) : 'paused'}</div>
-          ${m.sleeping ? `<div class="small muted">window opens ${toClock(m.activeStart)}</div>` : ''}
-        </div>
-        <div>
-          <div class="metric-label">Uptime · p95</div>
-          <div class="metric-value">${fmtPct(m.stats.uptimePct)}</div>
-          <div class="small muted">p95 ${fmtMs(m.stats.latency.p95)} · ${m.stats.coldStarts.count} cold</div>
-        </div>
-        <div class="spark-cell" data-spark="${m.id}">${sparkline(m.sparkline, threshold)}</div>
-        <div class="actions" data-stop>
-          <button class="btn btn-sm" data-action="ping" title="Ping now">Ping</button>
-          <button class="btn btn-sm" data-action="toggle">${m.enabled ? 'Pause' : 'Resume'}</button>
-          <button class="btn btn-sm" data-action="edit">Edit</button>
-          <button class="btn btn-sm btn-danger" data-action="delete" aria-label="Delete ${esc(m.name)}">✕</button>
-        </div>
-      </div>`;
+      </article>`;
   }).join('');
 
   if (state.editingId) {
@@ -248,6 +373,7 @@ function renderMonitors() {
 }
 
 $('#monitors').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-open-add]')) return openAdd(true);
   const row = e.target.closest('.monitor');
   if (!row) return;
   const id = Number(row.dataset.id);
@@ -257,17 +383,22 @@ $('#monitors').addEventListener('click', async (e) => {
     const monitor = state.overview.monitors.find((m) => m.id === id);
     button.disabled = true;
     try {
-      if (action === 'ping') await api('POST', `/api/monitors/${id}/ping`);
+      if (action === 'ping') {
+        if (monitor.sleeping && !confirm(`${monitor.name} is outside its keep-warm hours. Pinging now wakes it and uses about 15 minutes of free instance hours. Ping anyway?`)) return;
+        const ping = await api('POST', `/api/monitors/${id}/ping`);
+        if (ping) toast(ping.ok ? `${monitor.name}: ${ping.statusCode} in ${fmtMs(ping.latencyMs)}` : `${monitor.name}: ${ping.error ?? 'ping failed'}`, { error: !ping.ok });
+      }
       if (action === 'toggle') await api('PATCH', `/api/monitors/${id}`, { enabled: !monitor.enabled });
       if (action === 'edit') { state.editingId = state.editingId === id ? null : id; renderMonitors(); return; }
       if (action === 'delete') {
         if (!confirm(`Stop pinging ${monitor.name} and delete its history?`)) return;
         await api('DELETE', `/api/monitors/${id}`);
         if (state.selectedId === id) closeDetail();
+        toast(`Deleted ${monitor.name}`);
       }
       await refresh();
     } catch (err) {
-      alert(err.message);
+      toast(err.message, { error: true });
     } finally {
       button.disabled = false;
     }
@@ -289,9 +420,10 @@ $('#monitors').addEventListener('submit', async (e) => {
       ...windowFromForm(form),
     });
     state.editingId = null;
+    toast('Saved');
     await refresh();
   } catch (err) {
-    alert(err.message);
+    toast(err.message, { error: true });
   }
 });
 
@@ -328,7 +460,7 @@ function syncWindowInputs(form) {
   const on = form.schedule.value === 'window';
   const wrapper = form.querySelector('.field-window');
   if (wrapper) wrapper.hidden = !on;
-  else for (const input of [form.activeFrom, form.activeTo]) input.hidden = !on;
+  else for (const input of [form.activeFrom, form.activeTo]) (input.closest('.field') ?? input).hidden = !on;
 }
 
 function windowFromForm(form) {
@@ -371,6 +503,8 @@ addForm.addEventListener('submit', async (e) => {
     addForm.reset();
     updateHint();
     syncWindowInputs(addForm);
+    openAdd(false);
+    toast(`Now keeping ${monitor.name} warm`);
     await refresh();
     selectMonitor(monitor.id);
   } catch (err) {
@@ -380,6 +514,17 @@ addForm.addEventListener('submit', async (e) => {
     submit.disabled = false;
   }
 });
+
+function openAdd(open) {
+  $('#add-card').hidden = !open;
+  $('#add-toggle').setAttribute('aria-expanded', String(open));
+  if (open) {
+    $('#add-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    addForm.url.focus({ preventScroll: true });
+  }
+}
+$('#add-toggle').addEventListener('click', () => openAdd($('#add-card').hidden));
+$('#add-close').addEventListener('click', () => openAdd(false));
 
 // ---------- window picker ----------
 
@@ -594,12 +739,12 @@ const feed = $('#feed');
 function addToFeed(monitorId, ping) {
   const m = state.overview?.monitors.find((x) => x.id === monitorId);
   if (!m) return;
-  feed.querySelector('li.muted')?.remove();
+  feed.querySelector('li.feed-empty')?.remove();
   const li = document.createElement('li');
   li.innerHTML = `
-    <span class="muted small">${esc(fmtTime(ping.startedAt))}</span>
+    <span class="feed-time">${esc(fmtTime(ping.startedAt))}</span>
     ${resultPill(ping, m.stats.coldStarts.thresholdMs)}
-    <span class="feed-url">${esc(m.name)} — ${esc(m.url)}</span>
+    <span class="feed-url" title="${esc(m.url)}">${esc(m.name)}</span>
     <span class="num small feed-latency">${ping.statusCode ?? esc(ping.error)} · ${esc(fmtMs(ping.latencyMs))}</span>`;
   feed.prepend(li);
   while (feed.children.length > 50) feed.lastElementChild.remove();
@@ -655,6 +800,9 @@ setInterval(() => {
   document.querySelectorAll('[data-next]').forEach((el) => {
     if (el.dataset.next) el.textContent = fmtIn(Number(el.dataset.next));
   });
+  document.querySelectorAll('[data-until]').forEach((el) => {
+    if (el.dataset.until) el.textContent = `${el.tagName === 'B' ? '' : 'in '}${fmtUntil(Number(el.dataset.until))}`;
+  });
   document.querySelectorAll('[data-ago]').forEach((el) => {
     if (el.dataset.ago) el.textContent = fmtAgo(Number(el.dataset.ago));
   });
@@ -693,7 +841,7 @@ async function saveSettings(changes) {
     renderSettings();
     await refresh();
   } catch (err) {
-    alert(err.message);
+    toast(err.message, { error: true });
     renderSettings();
   }
 }

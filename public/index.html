@@ -9,21 +9,55 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.5 2 3 0-3.5.5-6.5 1-9.5z" fill="currentColor"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  </svg>
+
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <div class="brand"><span class="brand-dot" aria-hidden="true"></span>keepwarm</div>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><svg><use href="#i-flame"/></svg></span>
+        <div>
+          <div class="brand-name">keepwarm</div>
+          <div class="brand-tag">Keeps your Render free services awake</div>
+        </div>
+      </div>
       <div class="topbar-right">
         <span id="live" class="live" data-state="connecting" title="Live updates"><span class="live-dot"></span><span class="live-label">Connecting…</span></span>
-        <button id="theme" class="btn btn-ghost btn-icon" type="button" aria-label="Toggle theme">◐</button>
+        <button id="theme" class="btn btn-ghost btn-icon" type="button" aria-label="Toggle theme"><svg class="ico"><use href="#i-contrast"/></svg></button>
+        <button id="add-toggle" class="btn btn-primary" type="button" aria-expanded="false" aria-controls="add-card"><svg class="ico"><use href="#i-plus"/></svg><span class="hide-sm">Add service</span></button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="tiles" id="summary" aria-label="Summary"></section>
+    <section class="hero" id="hero" data-tone="neutral" aria-live="polite">
+      <div class="hero-icon" aria-hidden="true"><svg><use href="#i-flame"/></svg></div>
+      <div class="hero-text">
+        <div class="hero-title" id="hero-title">Loading…</div>
+        <div class="hero-sub" id="hero-sub"></div>
+      </div>
+    </section>
 
-    <section class="card">
-      <h2>Add a service</h2>
+    <section class="card add-card" id="add-card" hidden>
+      <div class="card-head">
+        <div>
+          <h2>Add a service</h2>
+          <p class="muted small card-sub">Paste a Render URL. keepwarm pings it right away, then on the schedule you choose.</p>
+        </div>
+        <button class="btn btn-ghost btn-icon" type="button" id="add-close" aria-label="Close"><svg class="ico"><use href="#i-x"/></svg></button>
+      </div>
       <form id="add-form" class="add-form" autocomplete="off">
         <label class="field field-url">
           <span>Render URL</span>
@@ -68,57 +102,14 @@
       <p class="form-error" id="form-error" role="alert" hidden></p>
     </section>
 
-    <section class="card" id="budget-card">
-      <div class="card-head">
-        <h2>Free instance hours</h2>
-        <span class="muted small" id="budget-period"></span>
-      </div>
-      <form id="budget-form" class="budget-form" autocomplete="off">
-        <label class="field">
-          <span>Monthly limit</span>
-          <select name="limitPreset">
-            <option value="750">Render free tier: 750 h</option>
-            <option value="custom">Custom…</option>
-          </select>
-        </label>
-        <label class="field field-limit-custom" hidden>
-          <span>Hours / month</span>
-          <input name="monthlyHourLimit" type="number" min="1" step="1" value="750">
-        </label>
-        <label class="field">
-          <span>Reserve for other use <em>(h)</em></span>
-          <input name="reservedHours" type="number" min="0" step="1" value="0">
-        </label>
-        <label class="field">
-          <span>Time zone</span>
-          <select name="timezone"></select>
-        </label>
-        <label class="check check-field"><input type="checkbox" name="countSelf"> keepwarm runs in this workspace</label>
-      </form>
+    <section class="tiles" id="summary" aria-label="Summary"></section>
 
-      <div class="meter-head">
-        <div><span class="meter-big" id="budget-used"></span> <span class="muted" id="budget-of"></span></div>
-        <span class="pill" id="budget-status"></span>
-      </div>
-      <div class="meter" id="budget-meter" role="img"></div>
-      <div class="legend" id="budget-legend"></div>
-
-      <div class="fit-row">
-        <p class="muted small" id="budget-explain"></p>
-        <form id="fit-form" class="fit-form">
-          <label class="field">
-            <span>Daily window starts at</span>
-            <input name="start" type="time" value="08:00">
-          </label>
-          <button class="btn btn-primary" type="submit">Fit services to limit</button>
-        </form>
-      </div>
-      <p class="form-error" id="fit-error" role="alert" hidden></p>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Services</h2>
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>Services</h2>
+          <p class="muted small" id="services-sub"></p>
+        </div>
         <div class="segmented" id="window-picker" role="tablist" aria-label="Time window">
           <button type="button" data-window="1h">1h</button>
           <button type="button" data-window="24h" class="active">24h</button>
@@ -174,26 +165,88 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>Live activity</h2>
-      <ul class="feed" id="feed"><li class="muted">Waiting for the next ping…</li></ul>
-    </section>
+    <div class="two-col">
+      <section class="card" id="budget-card">
+        <div class="card-head">
+          <div>
+            <h2>Free instance hours</h2>
+            <p class="muted small card-sub" id="budget-period"></p>
+          </div>
+          <span class="pill" id="budget-status"></span>
+        </div>
+
+        <div class="meter-head">
+          <div><span class="meter-big" id="budget-used"></span> <span class="muted" id="budget-of"></span></div>
+        </div>
+        <div class="meter" id="budget-meter" role="img"></div>
+        <div class="legend" id="budget-legend"></div>
+
+        <details class="settings">
+          <summary>Budget settings &amp; auto-fit</summary>
+          <form id="budget-form" class="budget-form" autocomplete="off">
+            <label class="field">
+              <span>Monthly limit</span>
+              <select name="limitPreset">
+                <option value="750">Render free tier: 750 h</option>
+                <option value="custom">Custom…</option>
+              </select>
+            </label>
+            <label class="field field-limit-custom" hidden>
+              <span>Hours / month</span>
+              <input name="monthlyHourLimit" type="number" min="1" step="1" value="750">
+            </label>
+            <label class="field">
+              <span>Reserve for other use <em>(h)</em></span>
+              <input name="reservedHours" type="number" min="0" step="1" value="0">
+            </label>
+            <label class="field">
+              <span>Time zone</span>
+              <select name="timezone"></select>
+            </label>
+            <label class="check check-field"><input type="checkbox" name="countSelf"> keepwarm runs in this workspace</label>
+          </form>
+
+          <div class="fit-row">
+            <p class="muted small" id="budget-explain"></p>
+            <form id="fit-form" class="fit-form">
+              <label class="field">
+                <span>Daily window starts at</span>
+                <input name="start" type="time" value="08:00">
+              </label>
+              <button class="btn btn-primary" type="submit">Fit services to limit</button>
+            </form>
+          </div>
+          <p class="form-error" id="fit-error" role="alert" hidden></p>
+        </details>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Live activity</h2>
+        </div>
+        <ul class="feed" id="feed"><li class="muted feed-empty">Waiting for the next ping…</li></ul>
+      </section>
+    </div>
   </main>
 
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
   <template id="edit-template">
     <form class="edit-form">
-      <input name="name" type="text" maxlength="100" aria-label="Name">
-      <input name="intervalMinutes" type="number" min="1" max="60" step="1" aria-label="Interval in minutes">
-      <span class="muted small">min</span>
-      <select name="schedule" aria-label="Keep warm">
-        <option value="allday">All day</option>
-        <option value="window">Between…</option>
-      </select>
-      <input name="activeFrom" type="time" aria-label="Keep warm from">
-      <input name="activeTo" type="time" aria-label="Keep warm until">
-      <button class="btn btn-primary btn-sm" type="submit">Save</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-cancel>Cancel</button>
+      <label class="field"><span>Name</span><input name="name" type="text" maxlength="100"></label>
+      <label class="field field-sm"><span>Every (min)</span><input name="intervalMinutes" type="number" min="1" max="60" step="1"></label>
+      <label class="field field-sm"><span>Keep warm</span>
+        <select name="schedule">
+          <option value="allday">All day</option>
+          <option value="window">Between…</option>
+        </select>
+      </label>
+      <label class="field field-sm"><span>From</span><input name="activeFrom" type="time"></label>
+      <label class="field field-sm"><span>To</span><input name="activeTo" type="time"></label>
+      <div class="edit-actions">
+        <button class="btn btn-primary btn-sm" type="submit">Save</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-cancel>Cancel</button>
+      </div>
     </form>
   </template>
   <script type="module" src="app.js"></script>
