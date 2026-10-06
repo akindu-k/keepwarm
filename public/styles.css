@@ -241,7 +241,7 @@ input:focus, select:focus, .btn:focus-visible, summary:focus-visible { outline: 
 .pill-busy::before { background: var(--series-1); animation: pulse 0.8s infinite; }
 
 /* Service cards */
-.monitors { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.monitors { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
 .empty { grid-column: 1 / -1; padding: 40px 20px; text-align: center; color: var(--text-2); border: 1.5px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
 .empty strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 4px; }
 .empty .btn { margin-top: 14px; }
