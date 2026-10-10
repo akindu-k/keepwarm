@@ -19,7 +19,8 @@ export const config = {
   retentionDays: int(process.env.RETENTION_DAYS, 7),
   // Optional Slack/Discord-compatible webhook notified when a monitor goes down or recovers.
   alertWebhookUrl: process.env.ALERT_WEBHOOK_URL || null,
-  // When set, the dashboard and API require HTTP Basic auth with this password.
+  // When set, the dashboard asks for this password on a login page; the API and /metrics
+  // accept a session cookie or HTTP Basic auth with it.
   dashboardPassword: process.env.DASHBOARD_PASSWORD || null,
   // keepwarm pings itself here so it doesn't sleep when hosted on a free tier.
   // Render sets RENDER_EXTERNAL_URL automatically.

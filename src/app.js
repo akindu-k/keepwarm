@@ -2,13 +2,13 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { monitorsRouter } from './routes/monitors.js';
 import { observabilityRouter } from './routes/observability.js';
-import { basicAuth } from './auth.js';
+import { createAuth } from './auth.js';
 import { budgetRouter } from './routes/budget.js';
 
 export function createApp({ store, scheduler, config, metrics }) {
   const app = express();
   app.disable('x-powered-by');
-  if (config.dashboardPassword) app.use(basicAuth(config.dashboardPassword));
+  if (config.dashboardPassword) app.use(createAuth(config.dashboardPassword));
   app.use(express.json({ limit: '16kb' }));
 
   app.get('/healthz', (_req, res) => {
@@ -20,6 +20,8 @@ export function createApp({ store, scheduler, config, metrics }) {
       res.type('text/plain; version=0.0.4').send(metrics.render(store));
     });
   }
+
+  app.get('/api/session', (_req, res) => res.json({ passwordProtected: Boolean(config.dashboardPassword) }));
 
   app.use('/api/monitors', monitorsRouter({ store, scheduler, config }));
   app.use('/api', observabilityRouter({ store, scheduler, config }));

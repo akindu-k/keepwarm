@@ -28,6 +28,7 @@
     <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 0 0-6 0C6.8 2.8 5.8 3.1 5.8 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></g></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
   </svg>
 
@@ -43,6 +44,7 @@
       <div class="topbar-right">
         <span id="live" class="live" data-state="connecting" title="Live updates"><span class="live-dot"></span><span class="live-label">Connecting…</span></span>
         <button id="theme" class="btn btn-ghost btn-icon" type="button" aria-label="Toggle theme"><svg class="ico"><use href="#i-contrast"/></svg></button>
+        <form id="logout" method="post" action="/logout" hidden><button class="btn btn-ghost btn-icon" type="submit" aria-label="Sign out" title="Sign out"><svg class="ico"><use href="#i-logout"/></svg></button></form>
         <button id="add-toggle" class="btn btn-primary" type="button" aria-expanded="false" aria-controls="add-card"><svg class="ico"><use href="#i-plus"/></svg><span class="hide-sm">Add service</span></button>
       </div>
     </div>
