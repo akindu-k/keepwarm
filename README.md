@@ -64,7 +64,7 @@ Keeping a service awake isn't free either: every hour it's awake counts against 
 ### Across the app
 
 - **Light and dark themes** that follow your system, with a toggle, and a layout that works down to small phones.
-- **Optional password protection** for the dashboard, API and metrics (HTTP Basic auth).
+- **Optional password protection** for the dashboard, API and metrics: a sign-in page for the browser, HTTP Basic auth for scripts.
 - **Safe by default on public instances:** only `*.onrender.com` URLs are accepted unless you opt in, so keepwarm can't be used to send requests to arbitrary hosts.
 - **Tiny footprint:** one runtime dependency (Express). Storage is SQLite through Node's built-in `node:sqlite`, and the frontend is plain JavaScript with no build step.
 
@@ -160,7 +160,7 @@ Copy `.env.example` to `.env`; `npm start` loads it automatically.
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port |
 | `DB_PATH` | `data/keepwarm.db` | SQLite database file |
-| `DASHBOARD_PASSWORD` | none | If set, the UI, API and `/metrics` require HTTP Basic auth (any username). `/healthz` stays public. |
+| `DASHBOARD_PASSWORD` | none | If set, the dashboard shows a sign-in page (sessions last 30 days), and the API and `/metrics` also accept HTTP Basic auth (any username). `/healthz` stays public. |
 | `SEED_MONITORS` | none | `url=minutes[@HH:MM-HH:MM]`, comma-separated, created on startup if missing |
 | `MONTHLY_HOUR_LIMIT` | `750` | Default monthly instance-hour limit for the budget card |
 | `TIMEZONE` | viewer's zone | Default IANA time zone for daily windows, e.g. `Asia/Colombo` |
@@ -221,7 +221,7 @@ curl -u :$DASHBOARD_PASSWORD -X POST http://localhost:3000/api/monitors \
 ```
 src/
   server.js           Start-up: store, scheduler, seeding, self-ping, retention
-  app.js              Express app: auth, routes, static files, /healthz, /metrics
+  app.js              Express app: login, routes, static files, /healthz, /metrics
   scheduler.js        One timer per service, daily windows, records each ping
   pinger.js           A single keep-alive request with timeout
   timewindow.js       Daily windows and month boundaries in a time zone

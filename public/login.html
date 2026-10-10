@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · keepwarm</title>
+  <meta name="robots" content="noindex">
+  <meta name="author" content="Akindu Kalhan">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#eb6834">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    try { const t = localStorage.getItem('keepwarm-theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* storage unavailable */ }
+  </script>
+</head>
+<body class="login-page">
+  <main class="login">
+    <div class="login-card">
+      <img class="login-mark" src="favicon.svg" width="52" height="52" alt="">
+      <h1>Sign in to keepwarm</h1>
+      <p class="login-sub">Enter the dashboard password to continue.</p>
+
+      <form class="login-form" method="post" action="/login">
+        <input type="hidden" name="next" id="next">
+        <input type="text" name="username" value="keepwarm" autocomplete="username" hidden>
+        <label class="field">
+          <span>Password</span>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" required autofocus autocomplete="current-password" aria-describedby="login-error">
+            <button class="password-toggle" type="button" id="toggle" aria-label="Show password" aria-pressed="false">Show</button>
+          </div>
+        </label>
+        <p class="login-error" id="login-error" role="alert" hidden>That password isn't right. Try again.</p>
+        <button class="btn btn-primary login-submit" type="submit" id="submit">Sign in</button>
+      </form>
+    </div>
+    <p class="login-foot">Keeps your Render free services awake</p>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    document.getElementById('next').value = params.get('next') ?? '/';
+    if (params.has('error')) {
+      document.getElementById('login-error').hidden = false;
+      document.getElementById('password').setAttribute('aria-invalid', 'true');
+    }
+
+    const password = document.getElementById('password');
+    const toggle = document.getElementById('toggle');
+    toggle.addEventListener('click', () => {
+      const show = password.type === 'password';
+      password.type = show ? 'text' : 'password';
+      toggle.textContent = show ? 'Hide' : 'Show';
+      toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', String(show));
+      password.focus();
+    });
+
+    document.querySelector('.login-form').addEventListener('submit', () => {
+      const submit = document.getElementById('submit');
+      submit.disabled = true;
+      submit.textContent = 'Signing in…';
+    });
+  </script>
+</body>
+</html>

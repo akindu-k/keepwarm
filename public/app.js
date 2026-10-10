@@ -29,6 +29,10 @@ async function api(method, path, body) {
     headers: body ? { 'content-type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    location.assign(`/login?${new URLSearchParams({ next: location.pathname + location.search })}`);
+    throw new Error('Signed out');
+  }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
@@ -961,6 +965,10 @@ $('#theme').addEventListener('click', () => {
   applyTheme(next);
   try { localStorage.setItem('keepwarm-theme', next); } catch { /* storage unavailable */ }
 });
+
+api('GET', '/api/session')
+  .then(({ passwordProtected }) => { $('#logout').hidden = !passwordProtected; })
+  .catch(console.error);
 
 loadSettings().catch(console.error).finally(refresh);
 connectEvents();
